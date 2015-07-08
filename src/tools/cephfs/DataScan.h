@@ -230,12 +230,12 @@ class DataScan : public MDSUtility
     /**
      * Scan data pool for backtraces, and inject inodes to metadata pool
      */
-    int recover();
+    int scan_inodes();
 
     /**
      * Scan data pool for file sizes and mtimes
      */
-    int recover_extents();
+    int scan_extents();
 
     // Accept pools which are not in the MDSMap
     bool force_pool;

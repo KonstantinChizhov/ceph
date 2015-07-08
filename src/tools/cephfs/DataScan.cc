@@ -117,6 +117,9 @@ int DataScan::main(const std::vector<const char*> &args)
     return r;
   }
 
+  std::string const &command = args[0];
+  std::string data_pool_name;
+
   // Consume any known --key val or --flag arguments
   for (std::vector<const char *>::const_iterator i = args.begin();
        i != args.end(); ++i) {
@@ -129,6 +132,12 @@ int DataScan::main(const std::vector<const char*> &args)
     }
 
     if (parse_arg(args, i)) {
+      continue;
+    }
+
+    if (i + 1 == args.end() &&
+        (command == "scan_inodes" || command == "scan_extents")) {
+      data_pool_name = *i;
       continue;
     }
 
@@ -151,8 +160,6 @@ int DataScan::main(const std::vector<const char*> &args)
     return r;
   }
 
-  std::string const &command = args[0];
-
   // Initialize data_io for those commands that need it
   if (command == "scan_inodes"
      || command == "scan_extents") {
@@ -161,39 +168,36 @@ int DataScan::main(const std::vector<const char*> &args)
       return -EINVAL;
     }
 
-    const std::string data_pool_name = args[args.size() - 1];
-    {
-      data_pool_id = rados.pool_lookup(data_pool_name.c_str());
-      if (data_pool_id < 0) {
-        std::cerr << "Data pool '" << data_pool_name << "' not found!" << std::endl;
-        return -ENOENT;
-      } else {
-        dout(4) << "data pool '" << data_pool_name
-          << "' has ID " << data_pool_id << dendl;
-      }
+    data_pool_id = rados.pool_lookup(data_pool_name.c_str());
+    if (data_pool_id < 0) {
+      std::cerr << "Data pool '" << data_pool_name << "' not found!" << std::endl;
+      return -ENOENT;
+    } else {
+      dout(4) << "data pool '" << data_pool_name
+        << "' has ID " << data_pool_id << dendl;
+    }
 
-      if (!mdsmap->is_data_pool(data_pool_id)) {
-        std::cerr << "Warning: pool '" << data_pool_name << "' is not a "
-          "CephFS data pool!" << std::endl;
-        if (!force_pool) {
-          std::cerr << "Use --force-pool to continue" << std::endl;
-          return -EINVAL;
-        }
+    if (!mdsmap->is_data_pool(data_pool_id)) {
+      std::cerr << "Warning: pool '" << data_pool_name << "' is not a "
+        "CephFS data pool!" << std::endl;
+      if (!force_pool) {
+        std::cerr << "Use --force-pool to continue" << std::endl;
+        return -EINVAL;
       }
+    }
 
-      dout(4) << "opening data pool '" << data_pool_name << "'" << dendl;
-      r = rados.ioctx_create(data_pool_name.c_str(), data_io);
-      if (r != 0) {
-        return r;
-      }
+    dout(4) << "opening data pool '" << data_pool_name << "'" << dendl;
+    r = rados.ioctx_create(data_pool_name.c_str(), data_io);
+    if (r != 0) {
+      return r;
     }
   }
 
   // Finally, dispatch command
   if (command == "scan_inodes") {
-    return recover();
+    return scan_inodes();
   } else if (command == "scan_extents") {
-    return recover_extents();
+    return scan_extents();
   } else if (command == "init") {
     return driver->init_roots(mdsmap->get_first_data_pool());
   } else {
@@ -363,7 +367,7 @@ int parse_oid(const std::string &oid, uint64_t *inode_no, uint64_t *obj_id)
 // Pending sharded pgls & add in progress mechanism for that
 #undef SHARDEDPGLS
 
-int DataScan::recover_extents()
+int DataScan::scan_extents()
 {
 #ifdef SHARDED_PGLS
   float progress = 0.0;
@@ -429,7 +433,7 @@ int DataScan::recover_extents()
   return 0;
 }
 
-int DataScan::recover()
+int DataScan::scan_inodes()
 {
 #ifdef SHARDED_PGLS
   float progress = 0.0;
@@ -449,7 +453,7 @@ int DataScan::recover()
 
   if (!roots_present) {
     std::cerr << "Some or all system inodes are absent.  Run 'init' from "
-      "one node before running 'recover'" << std::endl;
+      "one node before running 'scan_inodes'" << std::endl;
     return -EIO;
   }
 
@@ -473,7 +477,7 @@ int DataScan::recover()
     }
 
     // We are only interested in 0th objects during this phase: we touched
-    // the other objects during recover_extents
+    // the other objects during scan_extents
     if (obj_name_offset != 0) {
       continue;
     }
