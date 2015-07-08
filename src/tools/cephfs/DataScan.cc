@@ -317,18 +317,21 @@ int MetadataDriver::check_roots(bool *result)
 
 /**
  * Stages:
- * PARALLEL
+ *
+ * SERIAL init
+ *  0. Create root inodes if don't exist
+ * PARALLEL scan_extents
  *  1. Size and mtime recovery: scan ALL objects, and update 0th
  *   objects with max size and max mtime seen.
- * PARALLEL
+ * PARALLEL scan_inodes
  *  2. Inode recovery: scan ONLY 0th objects, and inject metadata
  *   into dirfrag OMAPs, creating blank dirfrags as needed.  No stats
  *   or rstats at this stage.  Inodes without backtraces go into
  *   lost+found
- * SERIAL
+ * TODO: SERIAL "recover stats"
  *  3. Dirfrag statistics: depth first traverse into metadata tree,
  *    rebuilding dir sizes.
- * PARALLEL
+ * TODO PARALLEL "clean up"
  *  4. Cleanup; go over all 0th objects (and dirfrags if we tagged
  *   anything onto them) and remove any of the xattrs that we
  *   used for accumulating.
@@ -425,15 +428,6 @@ int DataScan::recover_extents()
 
   return 0;
 }
-
-/*
- * Other handy commands:
- *  A Find inode by backtrace expression, e.g. "myimportantfile"
- *  B Selectively recover only particular inodes, e.g. those identified
- *    by A.
- *  C When recovering inodes, write files out to local disk instead of
- *    trying to inject them into the CephFS metadata pool.
- */
 
 int DataScan::recover()
 {
