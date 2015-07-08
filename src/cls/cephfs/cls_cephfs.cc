@@ -37,18 +37,15 @@ std::ostream &operator<<(std::ostream &out, ObjCeiling &in)
 
 
 /**
- * Set a named xattr to a given integer, if and only if the xattr
- * is not already set to a greater integer.
+ * Set a named xattr to a given value, if and only if the xattr
+ * is not already set to a greater value.
  *
- * If the xattr is missing, or does not encode an integer, then
- * it is set to the input integer.
+ * If the xattr is missing, then it is set to the input integer.
  *
- * On success, the output buffer is populated with the resulting
- * integer contained in the xattr.  On failure, a nonzero value is
- * returned and the contents of the output buffer are undefined.
- *
- * @param in: encoded xattr name, uint64_t
- * @param out: the resulting value of the named xattr
+ * @param xattr_name: name of xattr to compare against and set
+ * @param input_val: candidate new value, of ::encode()'able type
+ * @returns 0 on success (irrespective of whether our new value
+ *          was used) else an error code
  */
 template <typename A>
 static int set_if_greater(cls_method_context_t hctx,
