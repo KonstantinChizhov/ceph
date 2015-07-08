@@ -50,6 +50,11 @@ bool DataScan::parse_kwarg(
   const std::string val(*(++i));
 
   if (arg == std::string("--output-dir")) {
+    if (driver != NULL) {
+      derr << "Unexpected --output-dir: output already selected!" << dendl;
+      *r = -EINVAL;
+      return false;
+    }
     driver = new LocalFileDriver(val, data_io);
     return true;
   } else if (arg == std::string("-n")) {
@@ -85,6 +90,9 @@ bool DataScan::parse_arg(
     return true;
   } else if (arg == "--force-corrupt") {
     force_corrupt = true;
+    return true;
+  } else if (arg == "--force-init") {
+    force_init = true;
     return true;
   } else {
     return false;
@@ -133,6 +141,7 @@ int DataScan::main(const std::vector<const char*> &args)
   if (driver == NULL) {
     driver = new MetadataDriver();
     driver->set_force_corrupt(force_corrupt);
+    driver->set_force_init(force_init);
   }
 
   dout(4) << "connecting to RADOS..." << dendl;
@@ -196,8 +205,22 @@ int DataScan::main(const std::vector<const char*> &args)
 int MetadataDriver::inject_unlinked_inode(
     inodeno_t inono, int mode, int64_t data_pool_id)
 {
+  const object_t oid = InodeStore::get_object_name(inono, frag_t(), ".inode");
+
+  // Skip if exists
+  bool already_exists = false;
+  int r = root_exists(inono, &already_exists);
+  if (r) {
+    return r;
+  }
+  if (already_exists && !force_init) {
+    std::cerr << "Inode 0x" << std::hex << inono << std::dec << " already"
+               " exists, skipping create.  Use --force-init to overwrite"
+               " the existing object." << std::endl;
+    return 0;
+  }
+
   // Compose
-  object_t oid = InodeStore::get_object_name(inono, frag_t(), ".inode");
   InodeStore inode;
   inode.inode.ino = inono;
   inode.inode.version = 1;
@@ -229,7 +252,7 @@ int MetadataDriver::inject_unlinked_inode(
   inode.encode(inode_bl);
 
   // Write
-  int r = metadata_io.write_full(oid.name, inode_bl);
+  r = metadata_io.write_full(oid.name, inode_bl);
   if (r != 0) {
     derr << "Error writing '" << oid.name << "': " << cpp_strerror(r) << dendl;
     return r;

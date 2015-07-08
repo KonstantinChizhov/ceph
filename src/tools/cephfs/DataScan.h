@@ -23,6 +23,10 @@ class RecoveryDriver {
     // If true, overwrite structures that generate decoding errors.
     bool force_corrupt;
 
+    // If true, overwrite root objects during init_roots even if they
+    // exist
+    bool force_init;
+
   public:
     virtual int init(librados::Rados &rados, const MDSMap *mdsmap) = 0;
 
@@ -30,6 +34,12 @@ class RecoveryDriver {
     {
       force_corrupt = val;
     }
+
+    void set_force_init(const bool val)
+    {
+      force_init = val;
+    }
+
 
     /**
      * Inject an inode + dentry parents into the metadata pool,
@@ -231,6 +241,8 @@ class DataScan : public MDSUtility
     bool force_pool;
     // Respond to decode errors by overwriting
     bool force_corrupt;
+    // Overwrite root objects even if they exist
+    bool force_init;
 
     /**
      * @param r set to error on valid key with invalid value
