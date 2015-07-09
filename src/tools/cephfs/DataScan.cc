@@ -29,9 +29,13 @@
 void DataScan::usage()
 {
   std::cout << "Usage: \n"
-    << "  cephfs-data-scan init\n"
-    << "  cephfs-data-scan scan_extents <data pool name>\n"
-    << "  cephfs-data-scan scan_inodes <data pool name>\n"
+    << "  cephfs-data-scan init [--force-init]\n"
+    << "  cephfs-data-scan scan_extents [--force-pool] <data pool name>\n"
+    << "  cephfs-data-scan scan_inodes [--force-pool] [--force-corrupt] <data pool name>\n"
+    << "\n"
+    << "    --force-corrupt: overrite apparently corrupt structures\n"
+    << "    --force-init: write root inodes even if they exist\n"
+    << "    --force-pool: use data pool even if it is not in MDSMap\n"
     << std::endl;
 
   generic_client_usage();
@@ -121,7 +125,7 @@ int DataScan::main(const std::vector<const char*> &args)
   std::string data_pool_name;
 
   // Consume any known --key val or --flag arguments
-  for (std::vector<const char *>::const_iterator i = args.begin();
+  for (std::vector<const char *>::const_iterator i = args.begin() + 1;
        i != args.end(); ++i) {
     if (parse_kwarg(args, i, &r)) {
       // Skip the kwarg value field
@@ -163,7 +167,8 @@ int DataScan::main(const std::vector<const char*> &args)
   // Initialize data_io for those commands that need it
   if (command == "scan_inodes"
      || command == "scan_extents") {
-    if (args.size() < 2) {
+    if (data_pool_name.empty()) {
+      std::cerr << "Data pool not specified" << std::endl;
       usage();
       return -EINVAL;
     }
